@@ -1,0 +1,38 @@
+name: FootIQ StatsBomb Event Import
+
+on:
+  workflow_dispatch:
+
+jobs:
+  import-events:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install psycopg2-binary gdown
+
+      - name: Download StatsBomb event ZIP
+        run: |
+          gdown --id 11KnejbugZimz3L6o9A2loaObDM3ywBBf \
+            -O statsbomb_pl_2015_16_events.zip
+
+      - name: Extract event files
+        run: |
+          mkdir -p statsbomb_events
+          unzip -q statsbomb_pl_2015_16_events.zip -d statsbomb_events
+
+      - name: Import events into FootIQ
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          python scripts/import_events.py
