@@ -23,7 +23,7 @@ jobs:
 
       - name: Download StatsBomb event ZIP
         run: |
-          gdown --id 11KnejbugZimz3L6o9A2loaObDM3ywBBf \
+          gdown 11KnejbugZimz3L6o9A21oaObDM3ywBBf \
             -O statsbomb_pl_2015_16_events.zip
 
       - name: Extract event files
