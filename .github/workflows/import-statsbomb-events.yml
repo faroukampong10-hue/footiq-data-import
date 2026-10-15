@@ -10,7 +10,7 @@ on:
 
 jobs:
   import-events:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 360
 
     steps:
@@ -53,15 +53,30 @@ jobs:
           print(f"OK: {len(files)} valid event files")
           EOF
 
-      - name: Report download size
+      - name: Measure trimmed size
         run: |
-          du -sh statsbomb_events
           python3 - <<'EOF'
-          import json, pathlib
+          import json, pathlib, sys, collections
+          sys.path.insert(0, "scripts")
+          from slim_events import slim_event
+          kept = 0
           total = 0
-          for f in pathlib.Path("statsbomb_events").glob("*.json"):
-              total += len(json.load(open(f, encoding="utf-8")))
-          print(f"TOTAL EVENTS: {total:,}")
+          size = 0
+          types = collections.Counter()
+          for f in sorted(pathlib.Path("statsbomb_events").glob("*.json")):
+              events = json.load(open(f, encoding="utf-8"))
+              total += len(events)
+              for e in events:
+                  s = slim_event(e)
+                  if s is not None:
+                      kept += 1
+                      size += len(json.dumps(s))
+                      types[s["type"]["name"]] += 1
+          print(f"EVENTS: {total:,} total, {kept:,} kept")
+          print(f"SLIM JSON: {size/1e6:.0f} MB")
+          print(f"ESTIMATED DB SIZE: {(size*1.15 + kept*350)/1e6:.0f} MB (free limit 500 MB, 13 MB already used)")
+          for name, count in types.most_common():
+              print(f"  {name}: {count:,}")
           EOF
 
       - name: Import events into FootIQ
