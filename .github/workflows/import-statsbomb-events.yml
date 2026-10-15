@@ -2,6 +2,11 @@ name: FootIQ StatsBomb Event Import
 
 on:
   workflow_dispatch:
+    inputs:
+      download_only:
+        description: "Only download and verify files (skip database import)"
+        type: boolean
+        default: true
 
 jobs:
   import-events:
@@ -19,19 +24,37 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install psycopg2-binary gdown
+          pip install psycopg2-binary
 
-      - name: Download StatsBomb event ZIP
+      - name: Download StatsBomb event files from GitHub
         run: |
-          gdown 11KnejbugZimz3L6o9A21oaObDM3ywBBf \
-            -O statsbomb_pl_2015_16_events.zip
-
-      - name: Extract event files
-        run: |
+          set -euo pipefail
+          BASE="https://raw.githubusercontent.com/statsbomb/open-data/master/data"
+          curl -fsSL --retry 5 --retry-delay 3 "$BASE/matches/2/27.json" -o matches.json
+          jq -r '.[].match_id' matches.json > match_ids.txt
+          COUNT=$(wc -l < match_ids.txt)
+          echo "Matches listed: $COUNT"
+          if [ "$COUNT" -ne 380 ]; then
+            echo "Expected 380 matches"
+            exit 1
+          fi
           mkdir -p statsbomb_events
-          unzip -q statsbomb_pl_2015_16_events.zip -d statsbomb_events
+          xargs -P 8 -I{} curl -fsSL --retry 5 --retry-delay 3 "$BASE/events/{}.json" -o "statsbomb_events/{}.json" < match_ids.txt
+
+      - name: Verify downloaded files
+        run: |
+          python3 - <<'EOF'
+          import json, pathlib
+          files = sorted(pathlib.Path("statsbomb_events").glob("*.json"))
+          assert len(files) == 380, f"Expected 380 files, found {len(files)}"
+          for f in files:
+              data = json.load(open(f, encoding="utf-8"))
+              assert isinstance(data, list) and data, f"Bad file: {f}"
+          print(f"OK: {len(files)} valid event files")
+          EOF
 
       - name: Import events into FootIQ
+        if: ${{ inputs.download_only == false }}
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
