@@ -53,31 +53,25 @@ jobs:
           print(f"OK: {len(files)} valid event files")
           EOF
 
-      - name: Measure trimmed size
+      - name: Trim event files to what FootIQ needs
         run: |
           python3 - <<'EOF'
-          import json, pathlib, sys, collections
+          import json, pathlib, sys
           sys.path.insert(0, "scripts")
           from slim_events import slim_event
-          kept = 0
           total = 0
-          size = 0
-          types = collections.Counter()
+          kept = 0
           for f in sorted(pathlib.Path("statsbomb_events").glob("*.json")):
               events = json.load(open(f, encoding="utf-8"))
+              slim = [s for s in (slim_event(e) for e in events) if s is not None]
               total += len(events)
-              for e in events:
-                  s = slim_event(e)
-                  if s is not None:
-                      kept += 1
-                      size += len(json.dumps(s))
-                      types[s["type"]["name"]] += 1
-          print(f"EVENTS: {total:,} total, {kept:,} kept")
-          print(f"SLIM JSON: {size/1e6:.0f} MB")
-          print(f"ESTIMATED DB SIZE: {(size*1.15 + kept*350)/1e6:.0f} MB (free limit 500 MB, 13 MB already used)")
-          for name, count in types.most_common():
-              print(f"  {name}: {count:,}")
+              kept += len(slim)
+              with open(f, "w", encoding="utf-8") as out:
+                  json.dump(slim, out)
+          print(f"Trimmed: {total:,} events down to {kept:,}")
+          assert 110000 < kept < 130000, f"Unexpected kept count: {kept}"
           EOF
+          du -sh statsbomb_events
 
       - name: Import events into FootIQ
         if: ${{ inputs.download_only == false }}
