@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0e1512">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<title>FootIQ</title>
+<style>
+:root{--bg:#0e1512;--card:#17211c;--text:#e8f1ec;--muted:#8fa699;--accent:#2ecc71;--bad:#e74c3c;--warn:#f1c40f;--line:#24332b;color-scheme:dark}
+@media (prefers-color-scheme:light){:root{--bg:#f4f8f5;--card:#fff;--text:#14201a;--muted:#5d7468;--accent:#1e9e55;--bad:#c0392b;--warn:#b7950b;--line:#dbe6df;color-scheme:light}}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.4 system-ui,sans-serif;background:var(--bg);color:var(--text)}
+header{padding:14px 16px 4px}
+h1{margin:0;font-size:22px}h1 span{color:var(--accent)}
+h3{margin:14px 0 2px}
+.sub{color:var(--muted);font-size:12px;margin:6px 0}
+nav{display:flex;gap:6px;padding:8px 12px;position:sticky;top:0;background:var(--bg);z-index:5}
+nav button{flex:1;padding:10px 2px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--text);font-size:13px}
+nav button.on{background:var(--accent);color:#06210f;border-color:var(--accent);font-weight:700}
+main{padding:4px 12px 20px}
+footer{padding:0 16px 40px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px;margin:8px 0}
+.wrap{overflow-x:auto;padding:4px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:7px 4px;text-align:center;white-space:nowrap}
+td.tn{white-space:normal;min-width:84px}
+th{color:var(--muted);font-weight:600;border-bottom:1px solid var(--line)}
+.tn{text-align:left}
+tr.team{cursor:pointer}
+tr.top td:first-child{box-shadow:inset 3px 0 var(--accent)}
+tr.bot td:first-child{box-shadow:inset 3px 0 var(--bad)}
+tbody tr+tr td{border-top:1px solid var(--line)}
+.f{display:inline-block;width:15px;height:15px;margin-left:1px;border-radius:50%;font:700 9px/15px system-ui;color:#fff;text-align:center}
+.f.W{background:#27ae60}.f.D{background:#8a8f94}.f.L{background:#c0392b}
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:8px 0}
+.c{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px;text-align:center}
+.c b{display:block;font-size:20px}.c span{color:var(--muted);font-size:11px}
+select{width:100%;padding:9px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:14px}
+.filters{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}
+.m{display:flex;justify-content:space-between;gap:8px;align-items:center}
+.m.tap{cursor:pointer}
+.d{color:var(--muted);font-size:11px}
+.sc{font-weight:700}
+.ok{color:var(--accent);font-weight:700;font-size:20px}.no{color:var(--bad);font-weight:700;font-size:20px}
+button.more{width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--text)}
+.note{border-left:3px solid var(--accent);padding:6px 10px;color:var(--muted);font-size:13px;margin:10px 0}
+.bar{display:flex;height:22px;border-radius:6px;overflow:hidden;margin:8px 0 4px;font-size:11px;font-weight:700;color:#06210f}
+.bar div{display:flex;align-items:center;justify-content:center;min-width:0}
+.bH{background:var(--accent)}.bD{background:#9aa5a0}.bA{background:#e6a23c}
+.bar .hit{outline:2px solid var(--text);outline-offset:-2px}
+.row{display:flex;justify-content:space-between;padding:5px 0;border-top:1px solid var(--line);font-size:13px}
+.row:first-of-type{border-top:0}
+.row span:first-child{color:var(--muted)}
+a{color:var(--accent)}
+</style>
+</head>
+<body>
+<header><h1>Foot<span>IQ</span> ⚽</h1><div class="sub">Premier League 2015/16</div></header>
+<nav id="nav"></nav>
+<main id="view"><p class="sub">Loading…</p></main>
+<footer><p class="sub">Data: <a href="https://github.com/statsbomb/open-data">StatsBomb open data</a>, 2015/16 Premier League. Predictions are backtested using only earlier results.</p></footer>
+<script>
+const API="https://releufvadodqjufvqboi.supabase.co/rest/v1/";
+const KEY="sb_publishable_kFt_dXaAGUm1ksFsNnAWTA_bqE0E8dL";
+const S={tab:"table",table:[],preds:[],mq:[],cmp:[],team:"",res:"",open:null,shown:50};
+const TABS=[["table","Standings"],["preds","Matches"],["team","Teams"],["model","Model"]];
+const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const num=v=>{v=Number(v);return isNaN(v)?0:v};
+const pc=v=>{v=num(v);return v>0&&v<=1?v*100:v};
+const view=document.getElementById("view"),nav=document.getElementById("nav");
+async function get(path){
+  const r=await fetch(API+path,{headers:{apikey:KEY}});
+  if(!r.ok)throw new Error("Request failed ("+r.status+")");
+  return r.json();
+}
+const dots=f=>(f||"").split("").map(c=>'<i class="f '+esc(c)+'">'+esc(c)+"</i>").join("");
+const tag=(t,a)=>'<div class="'+t+'">'+a+"</div>";
+const card=(a,b)=>'<div class="c"><b>'+a+"</b><span>"+b+"</span></div>";
+function opts(list,cur,all){return '<option value="">'+all+"</option>"+list.map(x=>'<option value="'+esc(x[0])+'"'+(x[0]===cur?" selected":"")+">"+esc(x[1])+"</option>").join("")}
+function pct(p){const o=p.predicted_outcome;return Math.round(pc(o==="Home"?p.home_probability:o==="Draw"?p.draw_probability:p.away_probability))}
+
+function tableView(){
+  const rows=S.table.map(t=>'<tr class="team '+(t.position<=4?"top":t.position>=18?"bot":"")+'" data-team="'+esc(t.team_name)+'"><td>'+t.position+'</td><td class="tn">'+esc(t.team_name)+"</td><td>"+t.wins+"</td><td>"+t.draws+"</td><td>"+t.losses+"</td><td>"+t.goal_difference+"</td><td><b>"+t.points+"</b></td><td>"+dots(t.last_5_form)+"</td></tr>").join("");
+  return '<div class="card wrap"><table><thead><tr><th>#</th><th class="tn">Team</th><th>W</th><th>D</th><th>L</th><th>GD</th><th>Pts</th><th>Form</th></tr></thead><tbody>'+rows+'</tbody></table></div><div class="sub">Tap a team for its detail page. Green edge: top 4. Red edge: bottom 3.</div>';
+}
+
+function detail(p){
+  const h=pc(p.home_probability),d=pc(p.draw_probability),a=pc(p.away_probability);
+  const hit=k=>p.predicted_outcome===k?" hit":"";
+  const done=p.actual_outcome!=null&&p.home_score!=null;
+  return '<div style="margin-top:10px">'
+   +'<div class="bar"><div class="bH'+hit("Home")+'" style="width:'+h+'%">'+Math.round(h)+'%</div><div class="bD'+hit("Draw")+'" style="width:'+d+'%">'+Math.round(d)+'%</div><div class="bA'+hit("Away")+'" style="width:'+a+'%">'+Math.round(a)+'%</div></div>'
+   +'<div class="d" style="display:flex;justify-content:space-between"><span>Home win</span><span>Draw</span><span>Away win</span></div>'
+   +'<div style="margin-top:8px">'
+   +'<div class="row"><span>Model pick</span><span>'+esc(p.predicted_outcome)+" ("+pct(p)+"%)</span></div>"
+   +'<div class="row"><span>Actual result</span><span>'+(done?esc(p.actual_outcome)+" "+p.home_score+"-"+p.away_score:"Not played")+"</span></div>"
+   +'<div class="row"><span>Confidence</span><span>'+Math.round(pc(p.confidence_score))+"%</span></div>"
+   +'<div class="row"><span>Model version</span><span>'+esc(p.model_version)+"</span></div>"
+   +'<div class="row"><span><a href="#" data-team="'+esc(p.home_team)+'">'+esc(p.home_team)+'</a></span><span><a href="#" data-team="'+esc(p.away_team)+'">'+esc(p.away_team)+"</a></span></div>"
+   +"</div></div>";
+}
+
+function predsView(){
+  const P=S.preds,ok=P.filter(p=>p.prediction_correct).length;
+  const teams=[...new Set(P.flatMap(p=>[p.home_team,p.away_team]))].sort();
+  const f=P.filter(p=>(!S.team||p.home_team===S.team||p.away_team===S.team)&&(!S.res||(S.res==="ok")===!!p.prediction_correct));
+  const rows=f.slice(0,S.shown).map(p=>{
+    const open=S.open===p.match_id;
+    return '<div class="card"><div class="m tap" data-open="'+p.match_id+'"><div><div class="d">'+esc(p.match_date)+"</div><div>"+esc(p.home_team)+' <span class="sc">'+esc(p.home_score)+"-"+esc(p.away_score)+"</span> "+esc(p.away_team)+'</div><div class="d">Predicted '+esc(p.predicted_outcome)+" ("+pct(p)+'%) · actual '+esc(p.actual_outcome)+'</div></div><div class="'+(p.prediction_correct?"ok":"no")+'">'+(p.prediction_correct?"✓":"✗")+"</div></div>"+(open?detail(p):"")+"</div>";
+  }).join("");
+  return '<div class="note">Historical backtest: predictions for matches already played, made using only earlier results. Tap a match for the full breakdown.</div>'
+   +'<div class="cards">'+card(P.length,"Matches")+card(ok,"Correct")+card((P.length?ok/P.length*100:0).toFixed(1)+"%","Accuracy")+"</div>"
+   +'<div class="filters"><select id="fteam">'+opts(teams.map(t=>[t,t]),S.team,"All teams")+'</select><select id="fres">'+opts([["ok","Correct"],["miss","Wrong"]],S.res,"All results")+"</select></div>"
+   +'<div class="sub">Showing '+Math.min(S.shown,f.length)+" of "+f.length+" matches (newest first)</div>"+rows
+   +(f.length>S.shown?'<button class="more" id="more">Show more</button>':"");
+}
+
+function teamView(){
+  const names=S.table.map(t=>t.team_name).sort();
+  if(!S.team)S.team=names[0]||"";
+  const t=S.table.find(x=>x.team_name===S.team);
+  const sel='<select id="fteam2">'+opts(names.map(n=>[n,n]),S.team,"Choose a team").replace('<option value="">Choose a team</option>',"")+"</select>";
+  if(!t)return sel;
+  const mine=S.preds.filter(p=>p.home_team===S.team||p.away_team===S.team);
+  const ok=mine.filter(p=>p.prediction_correct).length;
+  let pw=0,aw=0;
+  mine.forEach(p=>{const home=p.home_team===S.team;pw+=pc(home?p.home_probability:p.away_probability);if(p.actual_outcome===(home?"Home":"Away"))aw++});
+  const n=mine.length||1,predWin=pw/n,actWin=aw/n*100,gap=predWin-actWin;
+  const verdict=!mine.length?"No predictions yet.":Math.abs(gap)<5?"The model rates this team about right.":gap>0?"The model overrates this team: it expects more wins than it gets.":"The model underrates this team: it wins more than expected.";
+  const recent=mine.slice(0,5).map(p=>'<div class="row"><span>'+esc(p.match_date)+" "+esc(p.home_team)+" "+esc(p.home_score)+"-"+esc(p.away_score)+" "+esc(p.away_team)+'</span><span class="'+(p.prediction_correct?"ok":"no")+'" style="font-size:15px">'+(p.prediction_correct?"✓":"✗")+"</span></div>").join("");
+  const split=(l,p,w,d,lo,gf,ga,pts)=>"<tr><td class=\"tn\">"+l+"</td><td>"+p+"</td><td>"+w+"</td><td>"+d+"</td><td>"+lo+"</td><td>"+gf+"-"+ga+"</td><td><b>"+pts+"</b></td></tr>";
+  return sel
+   +'<div class="cards">'+card("#"+t.position,"Position")+card(t.points,"Points")+card(t.goal_difference,"Goal diff")+"</div>"
+   +'<div class="card"><div class="d">Last 5</div><div style="margin-top:4px">'+dots(t.last_5_form)+"</div></div>"
+   +'<div class="card wrap"><table><thead><tr><th class="tn"></th><th>P</th><th>W</th><th>D</th><th>L</th><th>GF-GA</th><th>Pts</th></tr></thead><tbody>'
+   +split("Home",t.home_played,t.home_wins,t.home_draws,t.home_losses,t.home_goals_for,t.home_goals_against,t.home_points)
+   +split("Away",t.away_played,t.away_wins,t.away_draws,t.away_losses,t.away_goals_for,t.away_goals_against,t.away_points)
+   +"</tbody></table></div>"
+   +"<h3>Model on this team</h3>"
+   +'<div class="cards">'+card(mine.length?(ok/mine.length*100).toFixed(0)+"%":"–","Accuracy")+card(predWin.toFixed(0)+"%","Expected win rate")+card(actWin.toFixed(0)+"%","Actual win rate")+"</div>"
+   +'<div class="note">'+esc(verdict)+"</div>"
+   +'<div class="card"><div class="d">Latest matches</div>'+recent+"</div>";
+}
+
+function modelView(){
+  const m=S.mq[0];
+  if(!m)return '<div class="note">No model data yet.</div>';
+  const P=S.preds,n=P.length||1,base=(P.filter(p=>p.actual_outcome==="Home").length/n*100).toFixed(1);
+  const cal=S.mq.filter(r=>r.calibration_outcome).sort((a,b)=>a.calibration_outcome.localeCompare(b.calibration_outcome)||a.probability_bin_min_pct-b.probability_bin_min_pct);
+  const rows=cal.map(r=>'<tr><td class="tn">'+esc(r.calibration_outcome)+"</td><td>"+r.probability_bin_min_pct+"-"+r.probability_bin_max_pct+"%</td><td>"+pc(r.mean_predicted_probability).toFixed(0)+"%</td><td>"+pc(r.observed_frequency).toFixed(0)+"%</td><td>"+r.calibration_predictions+"</td></tr>").join("");
+  return '<div class="note"><b>'+esc(m.evaluation_label)+"</b>. These predictions were made for matches already played, using only earlier results.</div>"
+   +'<div class="cards">'+card(num(m.accuracy_pct).toFixed(1)+"%","Accuracy")+card(num(m.brier_score).toFixed(3),"Brier")+card(num(m.log_loss).toFixed(3),"Log loss")+"</div>"
+   +'<div class="card">Always picking a home win would be right <b>'+base+"%</b> of the time. Brier score and log loss measure the probabilities, not just the pick: lower is better.</div>"
+   +"<h3>Current vs clean model</h3><div class=\"sub\">The clean model rates each team only from xG in earlier matches, as a check on the backtest.</div>"
+   +'<div class="card wrap"><table><thead><tr><th class="tn">Model</th><th>Acc</th><th>Brier</th><th>Log loss</th></tr></thead><tbody>'+S.cmp.map(r=>'<tr><td class="tn">'+esc(r.model)+"</td><td>"+num(r.accuracy_pct).toFixed(1)+"%</td><td>"+num(r.brier_score).toFixed(3)+"</td><td>"+num(r.log_loss).toFixed(3)+"</td></tr>").join("")+"</tbody></table></div>"
+   +'<div class="note">Near-identical scores mean the current numbers hold up when built only from past matches.</div>'
+   +"<h3>Calibration</h3><div class=\"sub\">When the model said X%, how often did it happen?</div>"
+   +'<div class="card wrap"><table><thead><tr><th class="tn">Outcome</th><th>Bin</th><th>Said</th><th>Saw</th><th>N</th></tr></thead><tbody>'+rows+"</tbody></table></div>";
+}
+
+function render(){
+  nav.innerHTML=TABS.map(t=>'<button data-k="'+t[0]+'" class="'+(S.tab===t[0]?"on":"")+'">'+t[1]+"</button>").join("");
+  view.innerHTML=S.tab==="table"?tableView():S.tab==="preds"?predsView():S.tab==="team"?teamView():modelView();
+}
+function goTeam(name){S.team=name;S.tab="team";render();window.scrollTo(0,0)}
+
+nav.addEventListener("click",e=>{const b=e.target.closest("button");if(b){S.tab=b.dataset.k;render();window.scrollTo(0,0)}});
+view.addEventListener("click",e=>{
+  const a=e.target.closest("a[data-team]");
+  if(a){e.preventDefault();goTeam(a.dataset.team);return}
+  const tr=e.target.closest("tr[data-team]");
+  if(tr){goTeam(tr.dataset.team);return}
+  const o=e.target.closest("[data-open]");
+  if(o){const id=Number(o.dataset.open);S.open=S.open===id?null:id;render();return}
+  if(e.target.id==="more"){S.shown+=50;render()}
+});
+view.addEventListener("change",e=>{
+  const id=e.target.id;
+  if(id==="fteam"){S.team=e.target.value;S.shown=50;S.open=null}
+  if(id==="fres"){S.res=e.target.value;S.shown=50;S.open=null}
+  if(id==="fteam2"){S.team=e.target.value}
+  render();
+});
+
+(async()=>{
+  try{
+    const r=await Promise.all([get("league_table?select=*&order=position.asc"),get("prediction_dashboard?select=*&order=match_date.desc"),get("model_quality?select=*"),get("model_compare?select=*")]);
+    S.table=r[0];S.preds=r[1];S.mq=r[2];S.cmp=r[3];render();
+  }catch(err){view.innerHTML='<div class="note">Could not load data: '+esc(err.message)+"</div>"}
+})();
+</script>
+</body>
+</html>
